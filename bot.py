@@ -137,7 +137,7 @@ def main():
     failures = 0
     attempts = 0
     target_since = started = time.monotonic()
-    print('v0.4 — E doar la apropiere vizuală. N: pornire/pauză. Ctrl+C: închidere.')
+    print('v0.5 — Drept pe rând: deplasare, apropiere, E. N: pornire/pauză. Ctrl+C: închidere.')
     try:
         with mss.mss() as capture:
             source = GameCapture(desktop, capture)
@@ -254,6 +254,9 @@ def main():
                     pause('Nu pot ajunge la ținta de pe rând. Oprit fără rotire.')
                     continue
                 action = servo.action(point(target,w,h))
+                if action.key == 'pause':
+                    pause('Ținta nu mai este în direcția înainte sau a fost depășită. Nu fac pași laterali.')
+                    continue
                 action = interaction.guard(action,target,w,h,now)
                 previous = frame
                 if action.key == 'wait':

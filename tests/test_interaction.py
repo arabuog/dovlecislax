@@ -11,6 +11,7 @@ class InteractionTests(unittest.TestCase):
 
     def test_near_fruit_requires_stable_position_before_one_press(self):
         gate=Interaction()
+        gate.observe_forward((630,350,55,30),(620,420,85,45),1280,720)
         box=(620,420,85,45)
         self.assertEqual(gate.guard(Action('e',.05),box,1280,720,0).key,'wait')
         self.assertEqual(gate.guard(Action('e',.05),box,1280,720,.4).key,'e')
@@ -22,6 +23,12 @@ class InteractionTests(unittest.TestCase):
         gate.fired(0)
         box=(620,420,85,45)
         for now in (10,20,30):
+            self.assertEqual(gate.guard(Action('e',.05),box,1280,720,now).key,'w')
+
+    def test_first_press_requires_approach_too(self):
+        gate=Interaction()
+        box=(620,420,85,45)
+        for now in (0,10,20):
             self.assertEqual(gate.guard(Action('e',.05),box,1280,720,now).key,'w')
 
     def test_next_press_after_observed_approach_and_stability(self):

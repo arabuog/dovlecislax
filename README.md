@@ -44,7 +44,7 @@ Fișierele `.bat` oferă aceleași comenzi dacă Windows permite rularea lor.
   înainte nu mai este o succesiune de opriri la fiecare cadru. Aproape de țintă
   eliberează doar Shift și păstrează W apăsat continuu: mersul normal al jocului,
   fără impulsuri de mers sau modificări de viteză. Eliberează W înainte de E,
-  corecții laterale, pierderea țintei sau pauză.
+  pierderea țintei sau pauză.
 - Nu apasă Ctrl sau tasta de ghemuit. Nu poate anula automat un stil de mers sau
   o animație impusă de server. Shift presupune configurația standard de alergare.
 - Apasă E o dată și așteaptă 9 secunde pentru animație. Nu verifică tichetele
@@ -54,8 +54,12 @@ Fișierele `.bat` oferă aceleași comenzi dacă Windows permite rularea lor.
   imagine, înălțime de minimum 3% și stabilitate timp de 0,35 secunde. Dacă ținta
   este prea mică, continuă W. După prima interacțiune, un nou E necesită progres
   vizual observat la aceeași țintă în urma unei comenzi W, plus expirarea pauzei.
-  Simpla trecere a timpului nu autorizează încă un E.
-- Nu rotește camera în timpul urmăririi/recoltării. Dacă pierde direcția, pune pe pauză.
+  Simpla trecere a timpului nu autorizează încă un E. Și prima apăsare E
+  necesită apropiere observată după W.
+- Pe rând folosește numai deplasare înainte (W, cu Shift la distanță) și E.
+  Nu corectează cu A/D/S. Dacă ținta este laterală sau depășită, pune pe pauză
+  în loc să plece în altă direcție. Deplasarea laterală este rezervată
+  tranziției dintre rânduri. Nu rotește camera în timpul urmăririi/recoltării.
 - După cel puțin o apăsare E, fără poziții memorate rămase și 2,5 secunde fără candidați pe rând,
   încearcă o trecere laterală și o singură întoarcere. Dacă o poziție memorată
   încă există, dar nu se mai vede, nu schimbă rândul. Direcția laterală alternează
@@ -76,11 +80,11 @@ măsurat. Depinde de sensibilitatea mouse-ului și a camerei din FiveM.
 normalizată de interacțiune. `--max-minutes` (implicit 120) limitează sesiunea.
 `--min-width` (implicit 0,055) ajustează pragul vizual de apropiere. Este un prag
 în pixeli relativi, nu o măsurătoare a distanței fizice; camera și zoom-ul îl pot
-afecta. La pornire apare versiunea `v0.4`, pentru identificarea fișierelor noi.
+afecta. La pornire apare versiunea `v0.5`, pentru identificarea fișierelor noi.
 
 ## Limite și verificări
 
-35 de teste automate au trecut, inclusiv blocarea lui E pentru ținte îndepărtate,
+37 de teste automate au trecut, inclusiv blocarea lui E pentru ținte îndepărtate,
 blocarea repetării fără deplasare observată și cerința de stabilitate. Sunt acoperite selectarea ferestrei, detectorul
 sintetic, proiecția rândului la mișcarea camerei, fluxul optic, păstrarea rândului în fața unor ținte
 laterale, recuperarea după o lipsă temporară a detecției și condițiile de final
@@ -99,3 +103,7 @@ sau texturi repetitive. Scriptul nu are coordonatele lumii jocului.
 Solul/utilajele pot produce false detecții. Nu există ocolire fiabilă a
 obstacolelor sau garanție de acoperire completă. Este necesară o probă în joc
 pentru calibrarea întoarcerii și a trecerii laterale.
+
+Numărul de pași nu este fixat la 5–6: distanța inițială poate varia, iar E este
+condiționat de apropierea vizuală. v0.5 nu este validată în joc; nu oferă
+măsurarea reală a distanței sau independență față de orice unghi al camerei.

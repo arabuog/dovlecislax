@@ -50,7 +50,12 @@ class RowTests(unittest.TestCase):
     def test_straight_ahead_target_uses_forward_command(self):
         self.assertEqual(RowServo().action((.52,.4)).key,'w')
         self.assertEqual(RowServo().action((.52,.65)).key,'e')
-        self.assertEqual(RowServo().action((.62,.4)).key,'d')
+        self.assertEqual(RowServo().action((.62,.4)).key,'pause')
+
+    def test_row_tracking_never_strafes_or_reverses(self):
+        for x in (.2,.52,.8):
+            for y in (.3,.65,.76):
+                self.assertNotIn(RowServo().action((x,y)).key,('a','s','d'))
 
     def test_hidden_remaining_fruit_prevents_row_change(self):
         row=Row()

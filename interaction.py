@@ -34,9 +34,9 @@ class Interaction:
         if self.last_press is not None:
             if now-self.last_press < self.cooldown:
                 return Action('wait', .05)
-            if self.forward_progress < .015:
-                self.stable_since = None
-                return Action('w', .06)
+        if self.forward_progress < .015:
+            self.stable_since = None
+            return Action('w', .06)
         if self.stable_since is None:
             self.stable_since = now
         if now-self.stable_since < .35:

@@ -134,11 +134,11 @@ class RowServo:
     def action(self, position):
         x,y=position
         if abs(x-.52) > .045:
-            return Action('d' if x>.52 else 'a', .06)
+            return Action('pause', 0)
         if y < self.goal-.035:
             return Action('w', .18 if y<self.goal-.12 else .06)
         if y > self.goal+.07:
-            return Action('s', .04)
+            return Action('pause', 0)
         return Action('e',.05)
 
     def observe(self, *_):
