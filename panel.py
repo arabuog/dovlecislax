@@ -9,6 +9,7 @@ import tkinter as tk
 from tkinter import ttk
 from panel_settings import Settings
 from simple_cycle import Cycle
+from repeat_cycle import RepeatCycle
 
 
 class Panel:
@@ -24,9 +25,9 @@ class Panel:
         self.closed=False
         self.n_down=False
         self.settings_path=Path(__file__).with_name('panel-settings.json')
-        root.title('Dovleci • Panou v1.1')
-        root.geometry('540x680')
-        root.minsize(500,650)
+        root.title('Dovleci • Panou v1.2')
+        root.geometry('600x720')
+        root.minsize(560,680)
         root.configure(bg='#101827')
         style=ttk.Style(root)
         style.theme_use('clam')
@@ -39,7 +40,7 @@ class Panel:
         body=ttk.Frame(root,padding=24)
         body.pack(fill='both',expand=True)
         ttk.Label(body,text='Mers → tastă → pauză',style='Title.TLabel').pack(anchor='w')
-        ttk.Label(body,text='Buclă simplă • N pornește / pune pe pauză',style='Hint.TLabel').pack(anchor='w',pady=(5,20))
+        ttk.Label(body,text='Buclă simplă • N pornește / pune pe pauză',style='Hint.TLabel').pack(anchor='w',pady=(5,12))
         defaults=asdict(Settings())
         self.load_warning=''
         try:
@@ -51,21 +52,24 @@ class Panel:
         form=ttk.Frame(body)
         form.pack(fill='x')
         form.columnconfigure(1,weight=1)
-        labels=[('steps','Număr de pași'),('key','Tastă de apăsat'),('wait','Așteptare după tastă (secunde)'),('step_seconds','Durata unui pas (secunde)'),('press_seconds','Durata apăsării tastei (secunde)')]
+        labels=[('steps','Număr de pași'),('key','Tastă de apăsat'),('repeats','Număr de apăsări pe ciclu'),('wait','Așteptare după tastă (secunde)'),('step_seconds','Durata unui pas (secunde)'),('press_seconds','Durata apăsării tastei (secunde)')]
         for row,(name,label) in enumerate(labels):
-            ttk.Label(form,text=label).grid(row=row,column=0,sticky='w',pady=7,padx=(0,12))
+            ttk.Label(form,text=label).grid(row=row,column=0,sticky='w',pady=4,padx=(0,12))
             var=tk.StringVar(value=str(defaults[name]))
             self.fields[name]=var
             if name=='key':
                 widget=ttk.Combobox(form,textvariable=var,values=('e','f','g','r','space','enter','1','2'),width=13)
             else:
                 widget=ttk.Entry(form,textvariable=var,width=15)
-            widget.grid(row=row,column=1,sticky='ew',pady=7)
-        ttk.Label(body,text='Pașii sunt aproximați prin timp. Calibrează durata unui pas\nîn joc. Nu există detecție sau schimbare automată de rând.',style='Hint.TLabel').pack(anchor='w',pady=(12,16))
+            widget.grid(row=row,column=1,sticky='ew',pady=4)
+        during=tk.BooleanVar(value=defaults['during_walk'])
+        self.fields['during_walk']=during
+        ttk.Checkbutton(body,text='Apasă tasta și în timpul mersului',variable=during).pack(anchor='w',pady=(12,0))
+        ttk.Label(body,text='Pașii sunt aproximați prin timp. Calibrează durata unui pas\nîn joc. Nu există detecție sau schimbare automată de rând.',style='Hint.TLabel').pack(anchor='w',pady=(8,10))
         self.summary=tk.StringVar()
-        ttk.Label(body,textvariable=self.summary).pack(anchor='w')
+        ttk.Label(body,textvariable=self.summary,wraplength=520).pack(anchor='w')
         buttons=ttk.Frame(body)
-        buttons.pack(fill='x',pady=(16,12))
+        buttons.pack(fill='x',pady=(10,8))
         ttk.Button(buttons,text='Pornește în 3 secunde',command=self.prepare).pack(side='left')
         ttk.Button(buttons,text='Oprește',command=lambda:self.stop('Oprit.')).pack(side='right')
         ttk.Button(body,text='Testează doar tasta în 3 secunde',command=self.prepare_test).pack(anchor='w',pady=(0,10))
@@ -84,12 +88,13 @@ class Panel:
         return window is not None and window.is_game and window.visible and not window.minimized
 
     def sync(self, wanted):
-        for key in list(self.held-({wanted} if wanted else set())):
+        desired = set(wanted) if isinstance(wanted,(set,frozenset)) else ({wanted} if wanted else set())
+        for key in list(self.held-desired):
             self.keys.keyUp.__wrapped__(key,_pause=False)
             self.held.discard(key)
-        if wanted and wanted not in self.held:
-            self.held.add(wanted)
-            if not self.keys.keyDown(wanted):
+        for key in sorted(desired-self.held,key=lambda key: key!='w'):
+            self.held.add(key)
+            if not self.keys.keyDown(key):
                 raise RuntimeError('Windows nu a acceptat apăsarea tastei.')
 
     def stop(self,message):
@@ -108,7 +113,8 @@ class Panel:
             self.stop('Setări modificate; pornește din nou pentru aplicare.')
         try:
             s=self.read()
-            self.summary.set(f'W {s.walk_seconds:g}s → {s.key.upper()} o dată → pauză {s.wait:g}s')
+            mode='în timpul mersului' if s.during_walk else 'după mers'
+            self.summary.set(f'W {s.walk_seconds:g}s • {s.key.upper()} × {s.repeats} {mode} • pauză {s.wait:g}s')
         except ValueError:
             self.summary.set('Completează valorile pentru a putea porni.')
 
@@ -118,7 +124,8 @@ class Panel:
         except ValueError as error:
             self.status.set(str(error))
             return False
-        self.cycle=Cycle(s.walk_seconds,s.wait,s.key,settle=.25,press=s.press_seconds)
+        self.cycle=RepeatCycle(s.walk_seconds,s.wait,s.key,settle=.25,press=s.press_seconds,
+                               repeats=s.repeats,during_walk=s.during_walk)
         try:
             self.settings_path.write_text(json.dumps(asdict(s),indent=2),encoding='utf-8')
         except OSError:
@@ -135,6 +142,8 @@ class Panel:
         self.stop('Pregătesc testul…')
         if self.configure():
             self.test_mode=True
+            # The isolated diagnostic remains exactly one press, without W.
+            self.cycle=Cycle(1,0,self.cycle.key,press=self.cycle.press)
             self.pending=time.monotonic()+3
             self.status.set('Revino în FiveM: trimit doar tasta, o dată, peste 3 secunde. Fără mers.')
 
@@ -180,7 +189,7 @@ class Panel:
                     if self.test_mode and self.cycle.phase=='rest':
                         self.stop('Test trimis o dată. Verifică dacă jocul a reacționat; bucla nu a pornit.')
                     else:
-                        labels={'walk':'Merge înainte…','settle':'Oprește mersul înainte de tastă…','press':'Ține tasta apăsată o dată…','rest':'Așteaptă…'}
+                        labels={'walk':'Merge înainte…','settle':'Oprește mersul înainte de tastă…','press':'Tastă apăsată…','gap':'Pauză între apăsări…','rest':'Așteaptă…'}
                         self.status.set(f'{labels[self.cycle.phase]} {max(0,self.cycle.deadline-now):.1f}s • N pentru pauză')
         except Exception as error:
             self.stop(f'Oprit din cauza unei erori: {error}')
