@@ -6,16 +6,15 @@ import threading
 import time
 
 import cv2
-import numpy as np
 from collection import Collection
 from detector import detect
 from navigation import Servo, Scan, choose, follow, point
+from game_capture import GameCapture, WindowsDesktop
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--preview', action='store_true')
-    parser.add_argument('--monitor', type=int, default=1)
     parser.add_argument('--collect-y', type=float, default=.66)
     parser.add_argument('--wait', type=float, default=9)
     parser.add_argument('--scan-pixels', type=int, default=240,
@@ -38,12 +37,11 @@ def main():
     held = set()
     pressed = set()
     generation = 0
+    desktop = WindowsDesktop()
 
     def focused():
-        hwnd = ctypes.windll.user32.GetForegroundWindow()
-        title = ctypes.create_unicode_buffer(512)
-        ctypes.windll.user32.GetWindowTextW(hwnd, title, 512)
-        return 'fivem' in title.value.lower()
+        window = desktop.snapshot()
+        return window is not None and window.is_game and window.visible and not window.minimized
 
     def release():
         with lock:
@@ -124,13 +122,26 @@ def main():
     print('F3: pornire/pauză. Ctrl+C: închidere. Mod experimental, nu garanție de acoperire.')
     try:
         with mss.mss() as capture:
-            if not 1 <= args.monitor < len(capture.monitors):
-                raise ValueError('Monitor inexistent.')
-            monitor = capture.monitors[args.monitor]
-            def grab():
-                return np.array(capture.grab(monitor))[:, :, :3].copy()
+            source = GameCapture(desktop, capture)
+            last_size = None
+            notice_at = 0
             while listener.is_alive():
-                frame = grab()
+                frame = source.grab()
+                if frame is None:
+                    if active.is_set():
+                        pause('Captură suspendată: FiveM trebuie să fie vizibil și în prim-plan.')
+                    if time.monotonic() - notice_at > 5:
+                        print('Aștept fereastra jocului FiveM în prim-plan. Discord nu este capturat.', flush=True)
+                        notice_at = time.monotonic()
+                    if args.preview and cv2.waitKey(30) & 255 == ord('q'):
+                        break
+                    time.sleep(.1)
+                    continue
+                if last_size is not None and frame.shape[:2] != last_size:
+                    target = previous = pending = collecting = None
+                    if active.is_set():
+                        pause('Dimensiunea jocului s-a schimbat; apasă F3 pentru reluare.')
+                last_size = frame.shape[:2]
                 h, w = frame.shape[:2]
                 boxes = detect(frame)
                 if args.preview:

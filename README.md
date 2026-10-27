@@ -14,6 +14,13 @@ câmpului și nu garantează nedetectabilitatea. Nu implementează ocolire anti-
    Q închide previzualizarea. Dacă marchează solul sau utilajele, nu porni controlul.
 5. Rulează `PORNIRE.bat`, apoi pune FiveM în prim-plan și apasă **F3**.
 
+Captura urmărește automat zona interioară a ferestrei FiveM, inclusiv dacă jocul
+este pe alt monitor. Identificarea folosește executabilul procesului de joc,
+nu titlul ferestrei. Dacă Discord, consola sau previzualizarea sunt în prim-plan,
+captura/detecția sunt suspendate. Revino în joc după lansarea previzualizării;
+imaginea afișată poate rămâne înghețată cât timp examinezi fereastra de preview.
+Discord poate rămâne pornit în fundal. Monitorul nu mai trebuie selectat manual.
+
 La pauză tastele se eliberează. Ctrl+C în consolă închide. Pierderea focusului
 pune pe pauză. Programul nu cere drepturi de administrator. Ține consola
 vizibilă când verifici prima funcționare.
@@ -52,18 +59,19 @@ nu demonstrează că mișcările generate vor funcționa în joc.
 
 ```powershell
 .\.venv\Scripts\python.exe bot.py --preview
-.\.venv\Scripts\python.exe bot.py --collect-y 0.66 --wait 9 --scan-pixels 240 --monitor 1
+.\.venv\Scripts\python.exe bot.py --collect-y 0.66 --wait 9 --scan-pixels 240
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
 `collect-y`: coordonata verticală normalizată a bazei țintei la interacțiune.
 `scan-pixels`: deplasarea mouse-ului la fiecare pas de căutare, dependentă de
-sensibilitate. `monitor`: monitorul MSS pe care este jocul. Rezoluția și camera
+sensibilitate. Rezoluția și camera
 influențează toate aceste valori.
 
 ## Verificare realizată
 
-15 teste automate trecute: detecție sintetică, așteptare/dispariție, alegerea
+21 teste automate trecute: selectarea ferestrei și respingerea Discord/Alt+Tab,
+detecție sintetică, așteptare/dispariție, alegerea
 țintelor din rânduri laterale, urmărire optică pe translație sintetică, căutare
 limitată și convergența comenzilor într-o simulare cu model de cameră liniar.
 Compilarea Python a trecut. Simularea nu reproduce camera și coliziunile FiveM.
