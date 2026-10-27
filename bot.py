@@ -1,5 +1,5 @@
-"""Default entry point: the simple timed loop."""
-from simple_bot import main
+"""Default entry point: the configurable desktop panel."""
+from panel import main
 
 if __name__ == "__main__":
     main()

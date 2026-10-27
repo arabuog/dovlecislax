@@ -3,11 +3,12 @@ import math
 
 
 class Cycle:
-    def __init__(self, walk=1.8, rest=7.0):
-        if not all(math.isfinite(x) and x > 0 for x in (walk,rest)):
+    def __init__(self, walk=1.8, rest=7.0, key='e'):
+        if not (math.isfinite(walk) and walk > 0 and math.isfinite(rest) and rest >= 0):
             raise ValueError('Durations must be positive and finite')
         self.walk = walk
         self.rest = rest
+        self.key = key
         self.phase = 'idle'
         self.deadline = 0.
 
@@ -29,4 +30,4 @@ class Cycle:
             elif self.phase == 'rest':
                 self.phase = 'walk'
                 self.deadline = now+self.walk
-        return {'walk':'w', 'press':'e'}.get(self.phase)
+        return {'walk':'w', 'press':self.key}.get(self.phase)
