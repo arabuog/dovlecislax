@@ -8,7 +8,8 @@ import time
 import cv2
 from collection import Collection
 from detector import detect
-from navigation import Servo, Scan, choose, follow, point
+from navigation import choose, follow, point
+from rows import Row, RowServo
 from game_capture import GameCapture, WindowsDesktop
 
 
@@ -17,14 +18,16 @@ def main():
     parser.add_argument('--preview', action='store_true')
     parser.add_argument('--collect-y', type=float, default=.66)
     parser.add_argument('--wait', type=float, default=9)
-    parser.add_argument('--scan-pixels', type=int, default=240,
-                        help='Mouse displacement for each search step; sensitivity-dependent')
+    parser.add_argument('--turn-pixels', type=int, default=1800,
+                        help='Mouse movement for one 180-degree row turn; MUST be calibrated')
+    parser.add_argument('--row-shift', type=float, default=.65,
+                        help='Seconds of sideways movement between rows; requires calibration')
     parser.add_argument('--max-minutes', type=float, default=120)
     args = parser.parse_args()
     if not .4 <= args.collect_y <= .73 or not 1 <= args.wait <= 30:
         parser.error('collect-y must be .4–.73; wait must be 1–30 seconds')
-    if not 10 <= args.scan_pixels <= 1000 or args.max_minutes <= 0:
-        parser.error('scan-pixels must be 10–1000; max-minutes must be positive')
+    if not 100 <= args.turn_pixels <= 10000 or args.max_minutes <= 0 or not .1 <= args.row_shift <= 3:
+        parser.error('turn-pixels: 100–10000; row-shift: .1–3; max-minutes must be positive')
     if sys.platform != 'win32':
         parser.error('Game control requires Windows. Portable tests run on Linux.')
     import mss
@@ -75,17 +78,22 @@ def main():
     def on_release(key):
         pressed.discard(key)
 
-    def pulse(key, seconds, token):
+    def pulse(key, seconds, token, sprint=False):
         with lock:
             if not active.is_set() or token != generation:
                 return False
             if not focused():
                 pause('Focus pierdut.')
                 return False
-            held.add(key)
-            if not keys.keyDown(key):
-                pause('Windows nu a acceptat comanda de tastatură.')
-                return False
+            wanted = {key,'shift'} if sprint else {key}
+            for old in list(held-wanted):
+                keys.keyUp.__wrapped__(old, _pause=False)
+                held.discard(old)
+            for new in sorted(wanted-held):
+                held.add(new)
+                if not keys.keyDown(new):
+                    pause('Windows nu a acceptat comanda de tastatură.')
+                    return False
         try:
             end = time.monotonic()+seconds
             while active.is_set() and token == generation and time.monotonic() < end:
@@ -95,18 +103,20 @@ def main():
                 time.sleep(.01)
             return active.is_set() and token == generation
         finally:
-            release()
+            if not sprint or not active.is_set() or token != generation:
+                release()
 
-    def rotate(token):
+    def rotate(token, direction):
+        release()
         # Small interruptible movements, rather than one long mouse operation.
-        for _ in range(12):
+        for _ in range(36):
             with lock:
                 if not active.is_set() or token != generation:
                     return False
                 if not focused():
                     pause('Focus pierdut.')
                     return False
-                keys.moveRel(round(args.scan_pixels/12), 0, relative=True)
+                keys.moveRel(direction*round(args.turn_pixels/36), 0, relative=True)
             time.sleep(.015)
         return True
 
@@ -114,8 +124,9 @@ def main():
     listener.start()
     session = -1
     target = previous = pending = collecting = None
-    scan = Scan()
-    servo = Servo(args.collect_y)
+    row = Row()
+    row_index = 0
+    servo = RowServo(args.collect_y)
     failures = 0
     attempts = 0
     target_since = started = time.monotonic()
@@ -145,7 +156,7 @@ def main():
                 h, w = frame.shape[:2]
                 boxes = detect(frame)
                 if args.preview:
-                    selected = choose(boxes, w, h)
+                    selected = row.choose(boxes, w, h, time.monotonic())
                     for box in boxes:
                         x,y,bw,bh = box
                         color = (0,255,0) if box != selected else (255,0,255)
@@ -162,8 +173,9 @@ def main():
                 if session != token:
                     session = token
                     target = previous = pending = collecting = None
-                    scan.reset()
-                    servo = Servo(args.collect_y)
+                    row = Row()
+                    row_index = 0
+                    servo = RowServo(args.collect_y)
                     failures = attempts = 0
                     target_since = started = time.monotonic()
                 if not focused():
@@ -179,52 +191,54 @@ def main():
                         time.sleep(.05)
                         continue
                     if result == 'timeout':
-                        failures += 1
-                        print('Ținta persistă; abandonez ținta și schimb vederea.',flush=True)
-                        if failures >= 3:
-                            pause('Trei interacțiuni nereușite. Calibrarea necesită verificare.')
-                            continue
-                        rotate(token)
-                        time.sleep(.3)
+                        pause('Recoltare neconfirmată. Oprit fără rotire sau schimbare de rând.')
+                        continue
                     else:
                         print('Dispariție vizuală observată (nu confirmare tichete).',flush=True)
                         failures = 0
-                        scan.reset()
+                        row.harvested += 1
                     collecting = target = previous = pending = None
                     continue
                 if target is not None and previous is not None:
                     matched = follow(previous,frame,target,boxes)
                     if matched is not None:
+                        row.observed_shift(target, matched, w, h)
                         if pending is not None:
                             servo.observe(point(target,w,h),point(matched,w,h),pending)
                         target = matched
                     else:
+                        release()
                         target = None
                     pending = None
                 if target is None:
-                    target = choose(boxes,w,h)
+                    target = row.choose(boxes,w,h,now)
                     target_since = now
                 if target is None:
-                    if not scan.next():
-                        pause('Scanarea nu mai găsește ținte. Câmp complet NU este confirmat.')
-                        continue
-                    rotate(token)
-                    servo = Servo(args.collect_y)
-                    previous = None
-                    time.sleep(.3)
+                    release()
+                    if row.finished(now):
+                        direction = 1 if row_index % 2 == 0 else -1
+                        print('Rând fără ținte vizibile; încerc trecerea la următorul.',flush=True)
+                        if pulse('d' if direction>0 else 'a',args.row_shift,token):
+                            rotate(token,direction)
+                        row_index += 1
+                        row = Row()
+                        previous = pending = None
+                        servo = RowServo(args.collect_y)
+                        time.sleep(.4)
+                    elif row.line is None:
+                        pause('Nu găsesc un rând. Câmp complet nu este confirmat.')
+                    elif row.missing_since is not None and now-row.missing_since > 6:
+                        pause('Rând pierdut înainte de prima recoltare; nu rotesc camera.')
+                    else:
+                        time.sleep(.1)
                     continue
                 if now-target_since > 25:
-                    attempts += 1
-                    if attempts >= 3:
-                        pause('Nu pot ajunge fiabil la ținte; verifică previzualizarea/calibrarea.')
-                        continue
-                    rotate(token)
-                    target = previous = pending = None
-                    time.sleep(.3)
+                    pause('Nu pot ajunge la ținta de pe rând. Oprit fără rotire.')
                     continue
                 action = servo.action(point(target,w,h))
                 previous = frame
-                if pulse(action.key,action.seconds,token):
+                sprint = action.key == 'w' and point(target,w,h)[1] < args.collect_y-.12
+                if pulse(action.key,action.seconds,token,sprint=sprint):
                     if action.key == 'e':
                         collecting = Collection(target,time.monotonic(),args.wait)
                         previous = pending = None
@@ -232,7 +246,7 @@ def main():
                     else:
                         pending = action
                 # Let camera/animation settle before estimating displacement.
-                time.sleep(.12)
+                time.sleep(.03 if sprint else .12)
     finally:
         pause('Oprit.')
         listener.stop()
