@@ -6,10 +6,9 @@ import threading
 import time
 
 import cv2
-from collection import Collection
 from detector import detect
 from navigation import choose, follow, point
-from rows import Row, RowServo
+from rows import Row, RowServo, ground_motion
 from game_capture import GameCapture, WindowsDesktop
 
 
@@ -124,6 +123,8 @@ def main():
     listener.start()
     session = -1
     target = previous = pending = collecting = None
+    motion_previous = None
+    motion_lost_since = None
     row = Row()
     row_index = 0
     servo = RowServo(args.collect_y)
@@ -178,31 +179,37 @@ def main():
                     servo = RowServo(args.collect_y)
                     failures = attempts = 0
                     target_since = started = time.monotonic()
+                    motion_previous = None
+                    motion_lost_since = None
                 if not focused():
                     pause('Focus pierdut.')
                     continue
                 now = time.monotonic()
+                if motion_previous is not None and row.line is not None:
+                    matrix = ground_motion(motion_previous, frame)
+                    if matrix is None or not row.reproject(matrix,w,h):
+                        release()
+                        if motion_lost_since is None:
+                            motion_lost_since = now
+                        elif now-motion_lost_since > .7:
+                            pause('Direcția rândului nu mai poate fi urmărită; nu aleg alt rând.')
+                        time.sleep(.05)
+                        continue
+                    motion_lost_since = None
+                motion_previous = frame
                 if now-started > args.max_minutes*60:
                     pause('Limită de sesiune atinsă.')
                     continue
                 if collecting is not None:
-                    result = collecting.update(boxes,now)
-                    if result == 'waiting':
+                    if now < collecting:
                         time.sleep(.05)
                         continue
-                    if result == 'timeout':
-                        pause('Recoltare neconfirmată. Oprit fără rotire sau schimbare de rând.')
-                        continue
-                    else:
-                        print('Dispariție vizuală observată (nu confirmare tichete).',flush=True)
-                        failures = 0
-                        row.harvested += 1
+                    print('Așteptarea după E s-a terminat; continui același rând.',flush=True)
                     collecting = target = previous = pending = None
                     continue
                 if target is not None and previous is not None:
                     matched = follow(previous,frame,target,boxes)
                     if matched is not None:
-                        row.observed_shift(target, matched, w, h)
                         if pending is not None:
                             servo.observe(point(target,w,h),point(matched,w,h),pending)
                         target = matched
@@ -222,13 +229,14 @@ def main():
                             rotate(token,direction)
                         row_index += 1
                         row = Row()
+                        motion_previous = None
                         previous = pending = None
                         servo = RowServo(args.collect_y)
                         time.sleep(.4)
                     elif row.line is None:
                         pause('Nu găsesc un rând. Câmp complet nu este confirmat.')
                     elif row.missing_since is not None and now-row.missing_since > 6:
-                        pause('Rând pierdut înainte de prima recoltare; nu rotesc camera.')
+                        pause('Mai există poziții memorate pe rând, dar nu le pot vedea. Nu schimb rândul.')
                     else:
                         time.sleep(.1)
                     continue
@@ -240,7 +248,8 @@ def main():
                 sprint = action.key == 'w' and point(target,w,h)[1] < args.collect_y-.12
                 if pulse(action.key,action.seconds,token,sprint=sprint):
                     if action.key == 'e':
-                        collecting = Collection(target,time.monotonic(),args.wait)
+                        row.mark_collected(target,w,h)
+                        collecting = time.monotonic()+args.wait
                         previous = pending = None
                         attempts = 0
                     else:

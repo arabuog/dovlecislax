@@ -1,5 +1,7 @@
 import unittest
-from rows import Row, RowServo
+from rows import Row, RowServo, ground_motion
+import cv2
+import numpy as np
 
 
 def fruit(x,y):
@@ -17,7 +19,7 @@ class RowTests(unittest.TestCase):
     def test_row_end_waits_for_stable_absence(self):
         row=Row()
         row.choose([fruit(.52,.65)],1280,720,0)
-        row.harvested=1
+        row.mark_collected(fruit(.52,.65),1280,720)
         row.choose([],1280,720,1)
         self.assertFalse(row.finished(2))
         self.assertTrue(row.finished(3.6))
@@ -49,3 +51,40 @@ class RowTests(unittest.TestCase):
         self.assertEqual(RowServo().action((.52,.4)).key,'w')
         self.assertEqual(RowServo().action((.52,.65)).key,'e')
         self.assertEqual(RowServo().action((.62,.4)).key,'d')
+
+    def test_hidden_remaining_fruit_prevents_row_change(self):
+        row=Row()
+        boxes=[fruit(.52,.4),fruit(.52,.65)]
+        row.choose(boxes,1280,720,0)
+        row.mark_collected(boxes[-1],1280,720)
+        row.choose([],1280,720,1)
+        self.assertFalse(row.finished(100))
+
+    def test_e_handled_fruit_is_not_selected_again(self):
+        row=Row()
+        boxes=[fruit(.52,.4),fruit(.52,.65)]
+        row.choose(boxes,1280,720,0)
+        row.mark_collected(boxes[-1],1280,720)
+        self.assertEqual(row.choose(boxes,1280,720,10),boxes[0])
+
+    def test_camera_projection_preserves_same_row(self):
+        row=Row()
+        boxes=[fruit(.52,.4),fruit(.52,.65)]
+        row.choose(boxes,1280,720,0)
+        row.mark_collected(boxes[-1],1280,720)
+        matrix=np.array([[1.,0.,120.],[0.,1.,15.],[0.,0.,1.]])
+        self.assertTrue(row.reproject(matrix,1280,720))
+        moved=[(x+120,y+15,w,h) for x,y,w,h in boxes]
+        self.assertEqual(row.choose(moved,1280,720,10),moved[0])
+
+    def test_ground_tracking_measures_camera_translation(self):
+        rng=np.random.default_rng(8)
+        previous=rng.integers(0,256,(360,640,3),dtype=np.uint8)
+        current=cv2.warpAffine(previous,np.float32([[1,0,7],[0,1,4]]),(640,360))
+        matrix=ground_motion(previous,current)
+        self.assertIsNotNone(matrix)
+        np.testing.assert_allclose(matrix[:2,2],[7,4],atol=.5)
+
+    def test_untrackable_ground_does_not_invent_direction(self):
+        blank=np.zeros((360,640,3),np.uint8)
+        self.assertIsNone(ground_motion(blank,blank))
