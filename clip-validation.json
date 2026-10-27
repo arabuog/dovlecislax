@@ -1,0 +1,21 @@
+{
+  "note": "Offline diagnostic counts, not annotated detection accuracy or in-game validation.",
+  "clips": [
+    {
+      "clip": 1,
+      "decoded_frames": 700,
+      "sampled_frames": 116,
+      "frames_with_candidate": 116,
+      "tracking_attempts": 115,
+      "accepted_flow_matches": 78
+    },
+    {
+      "clip": 2,
+      "decoded_frames": 439,
+      "sampled_frames": 73,
+      "frames_with_candidate": 64,
+      "tracking_attempts": 63,
+      "accepted_flow_matches": 49
+    }
+  ]
+}
