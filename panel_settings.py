@@ -9,6 +9,7 @@ class Settings:
     step_seconds: float = .30
     key: str = 'e'
     wait: float = 7.
+    press_seconds: float = .20
 
     @property
     def walk_seconds(self):
@@ -20,6 +21,7 @@ class Settings:
             steps=int(str(raw['steps']).strip())
             seconds=float(str(raw['step_seconds']).replace(',','.'))
             wait=float(str(raw['wait']).replace(',','.'))
+            press=float(str(raw.get('press_seconds',.20)).replace(',','.'))
         except (KeyError, ValueError, TypeError):
             raise ValueError('Introdu un număr întreg de pași și durate numerice.') from None
         key=str(raw.get('key','')).strip().lower()
@@ -29,6 +31,8 @@ class Settings:
             raise ValueError('Durata unui pas trebuie să fie între 0,05 și 2 secunde.')
         if not math.isfinite(wait) or not 0 <= wait <= 3600:
             raise ValueError('Așteptarea trebuie să fie între 0 și 3600 secunde.')
+        if not math.isfinite(press) or not .05 <= press <= 1:
+            raise ValueError('Durata apăsării trebuie să fie între 0,05 și 1 secundă.')
         if key not in supported_keys or key in ('n','w'):
             raise ValueError('Tastă invalidă. N este pentru pauză, iar W pentru mers.')
-        return cls(steps,seconds,key,wait)
+        return cls(steps,seconds,key,wait,press)

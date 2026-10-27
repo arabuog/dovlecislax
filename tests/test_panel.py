@@ -16,7 +16,8 @@ class PanelTests(unittest.TestCase):
         panel.root=SimpleNamespace(after=lambda *_:None,destroy=lambda:None)
         panel.listener=SimpleNamespace(is_alive=lambda:True,stop=lambda:None)
         panel.status=SimpleNamespace(set=lambda value:None)
-        panel.cycle=Cycle(walk=1,rest=7,key='f')
+        panel.cycle=Cycle(walk=1,rest=7,key='f',settle=.25,press=.2)
+        panel.test_mode=False
         panel.pending=None
         panel.closed=False
         panel.held=set()
@@ -39,10 +40,43 @@ class PanelTests(unittest.TestCase):
     def test_one_chosen_key_and_wait_not_repeated_presses(self):
         p=self.make_panel()
         p.cycle.start(0)
-        for now in (0,1,1.06,2,7,8):
+        for now in (0,1,1.26,1.47,2,7,8):
             with patch('panel.time.monotonic',return_value=now):
                 p.tick()
         self.assertEqual(self.events,[('down','w'),('up','w'),('down','f'),('up','f')])
+
+    def test_w_is_released_before_press_and_press_is_held_long_enough(self):
+        p=self.make_panel()
+        p.cycle.start(0)
+        for now in (0,1,1.24):
+            with patch('panel.time.monotonic',return_value=now):
+                p.tick()
+        self.assertEqual(self.events,[('down','w'),('up','w')])
+        for now in (1.26,1.4):
+            with patch('panel.time.monotonic',return_value=now):
+                p.tick()
+        self.assertEqual(self.events[-1],('down','f'))
+        with patch('panel.time.monotonic',return_value=1.47):
+            p.tick()
+        self.assertEqual(self.events[-1],('up','f'))
+
+    def test_action_test_never_walks_or_repeats(self):
+        p=self.make_panel()
+        with patch('panel.time.monotonic',return_value=0):
+            p.prepare_test()
+        for now in (2,3,3.1,3.21,11):
+            with patch('panel.time.monotonic',return_value=now):
+                p.tick()
+        self.assertEqual(self.events,[('down','f'),('up','f')])
+        self.assertEqual(p.cycle.phase,'idle')
+
+    def test_pause_during_press_releases_action(self):
+        p=self.make_panel()
+        p.cycle.start_press(0)
+        with patch('panel.time.monotonic',return_value=0):
+            p.tick()
+        p.stop('pause')
+        self.assertEqual(self.events,[('down','f'),('up','f')])
 
     def test_alt_tab_releases_key_and_stays_paused(self):
         p=self.make_panel()
@@ -92,3 +126,12 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(c.tick(.3),'e')
         self.assertIsNone(c.tick(.36))
         self.assertEqual(c.tick(.37),'w')
+
+    def test_old_settings_get_new_press_default(self):
+        s=Settings.parse(dict(steps=6,step_seconds=.3,key='e',wait=7),{'e'})
+        self.assertEqual(s.press_seconds,.2)
+
+    def test_rejects_invalid_press_duration(self):
+        for value in (0,2,float('nan')):
+            with self.assertRaises(ValueError):
+                Settings.parse(dict(steps=6,step_seconds=.3,key='e',wait=7,press_seconds=value),{'e'})
