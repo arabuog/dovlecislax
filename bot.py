@@ -103,7 +103,7 @@ def main():
                 time.sleep(.01)
             return active.is_set() and token == generation
         finally:
-            if not sprint or not active.is_set() or token != generation:
+            if key != 'w' or not active.is_set() or token != generation:
                 release()
 
     def rotate(token, direction):
@@ -246,7 +246,7 @@ def main():
                     else:
                         pending = action
                 # Let camera/animation settle before estimating displacement.
-                time.sleep(.03 if sprint else .12)
+                time.sleep(.02 if action.key == 'w' else .12)
     finally:
         pause('Oprit.')
         listener.stop()

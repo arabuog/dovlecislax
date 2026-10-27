@@ -40,7 +40,9 @@ Fișierele `.bat` oferă aceleași comenzi dacă Windows permite rularea lor.
 - Urmărește mișcarea țintei între capturi. Actualizează poziția estimată a rândului.
 - Pentru distanțe mai lungi ține W + Shift între capturi, astfel încât deplasarea
   înainte nu mai este o succesiune de opriri la fiecare cadru. Aproape de țintă
-  eliberează Shift și folosește corecții scurte.
+  eliberează doar Shift și păstrează W apăsat continuu: mersul normal al jocului,
+  fără impulsuri de mers sau modificări de viteză. Eliberează W înainte de E,
+  corecții laterale, pierderea țintei sau pauză.
 - Nu apasă Ctrl sau tasta de ghemuit. Nu poate anula automat un stil de mers sau
   o animație impusă de server. Shift presupune configurația standard de alergare.
 - Apasă E o dată și așteaptă minimum 9 secunde, apoi cere dispariția vizuală a
