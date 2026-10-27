@@ -1,4 +1,4 @@
-"""Experimental visual navigation on Windows. F3 toggles; Ctrl+C exits."""
+"""Experimental visual navigation on Windows. N toggles; Ctrl+C exits."""
 import argparse
 import ctypes
 import sys
@@ -10,6 +10,7 @@ from detector import detect
 from navigation import choose, follow, point
 from rows import Row, RowServo, ground_motion
 from game_capture import GameCapture, WindowsDesktop
+from interaction import Interaction
 
 
 def main():
@@ -17,6 +18,8 @@ def main():
     parser.add_argument('--preview', action='store_true')
     parser.add_argument('--collect-y', type=float, default=.66)
     parser.add_argument('--wait', type=float, default=9)
+    parser.add_argument('--min-width', type=float, default=.055,
+                        help='Minimum pumpkin width / game width before E')
     parser.add_argument('--turn-pixels', type=int, default=1800,
                         help='Mouse movement for one 180-degree row turn; MUST be calibrated')
     parser.add_argument('--row-shift', type=float, default=.65,
@@ -25,6 +28,8 @@ def main():
     args = parser.parse_args()
     if not .4 <= args.collect_y <= .73 or not 1 <= args.wait <= 30:
         parser.error('collect-y must be .4–.73; wait must be 1–30 seconds')
+    if not .02 <= args.min_width <= .15:
+        parser.error('min-width must be .02–.15')
     if not 100 <= args.turn_pixels <= 10000 or args.max_minutes <= 0 or not .1 <= args.row_shift <= 3:
         parser.error('turn-pixels: 100–10000; row-shift: .1–3; max-minutes must be positive')
     if sys.platform != 'win32':
@@ -62,7 +67,7 @@ def main():
 
     def on_press(key):
         nonlocal generation
-        if key == keyboard.Key.f3 and key not in pressed and not args.preview:
+        if (getattr(key, 'char', None) or '').lower() == 'n' and key not in pressed and not args.preview:
             with lock:
                 if active.is_set():
                     pause('Pauză. Taste eliberate.')
@@ -71,7 +76,7 @@ def main():
                     active.set()
                     print('Pornit: navigare vizuală experimentală.', flush=True)
                 else:
-                    print('Pune FiveM în prim-plan înainte de F3.', flush=True)
+                    print('Pune FiveM în prim-plan înainte de N.', flush=True)
         pressed.add(key)
 
     def on_release(key):
@@ -128,10 +133,11 @@ def main():
     row = Row()
     row_index = 0
     servo = RowServo(args.collect_y)
+    interaction = Interaction(min_width=args.min_width,cooldown=args.wait)
     failures = 0
     attempts = 0
     target_since = started = time.monotonic()
-    print('F3: pornire/pauză. Ctrl+C: închidere. Mod experimental, nu garanție de acoperire.')
+    print('v0.4 — E doar la apropiere vizuală. N: pornire/pauză. Ctrl+C: închidere.')
     try:
         with mss.mss() as capture:
             source = GameCapture(desktop, capture)
@@ -152,7 +158,7 @@ def main():
                 if last_size is not None and frame.shape[:2] != last_size:
                     target = previous = pending = collecting = None
                     if active.is_set():
-                        pause('Dimensiunea jocului s-a schimbat; apasă F3 pentru reluare.')
+                        pause('Dimensiunea jocului s-a schimbat; apasă N pentru reluare.')
                 last_size = frame.shape[:2]
                 h, w = frame.shape[:2]
                 boxes = detect(frame)
@@ -177,6 +183,7 @@ def main():
                     row = Row()
                     row_index = 0
                     servo = RowServo(args.collect_y)
+                    interaction = Interaction(min_width=args.min_width,cooldown=args.wait)
                     failures = attempts = 0
                     target_since = started = time.monotonic()
                     motion_previous = None
@@ -211,6 +218,8 @@ def main():
                     matched = follow(previous,frame,target,boxes)
                     if matched is not None:
                         if pending is not None:
+                            if pending.key == 'w':
+                                interaction.observe_forward(target,matched,w,h)
                             servo.observe(point(target,w,h),point(matched,w,h),pending)
                         target = matched
                     else:
@@ -219,6 +228,7 @@ def main():
                     pending = None
                 if target is None:
                     target = row.choose(boxes,w,h,now)
+                    interaction.new_target()
                     target_since = now
                 if target is None:
                     release()
@@ -244,10 +254,18 @@ def main():
                     pause('Nu pot ajunge la ținta de pe rând. Oprit fără rotire.')
                     continue
                 action = servo.action(point(target,w,h))
+                action = interaction.guard(action,target,w,h,now)
                 previous = frame
+                if action.key == 'wait':
+                    release()
+                    pending = None
+                    time.sleep(action.seconds)
+                    continue
                 sprint = action.key == 'w' and point(target,w,h)[1] < args.collect_y-.12
                 if pulse(action.key,action.seconds,token,sprint=sprint):
                     if action.key == 'e':
+                        interaction.fired(time.monotonic())
+                        print('E: țintă apropiată; o singură apăsare, apoi aștept animația.',flush=True)
                         row.mark_collected(target,w,h)
                         collecting = time.monotonic()+args.wait
                         previous = pending = None

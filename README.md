@@ -1,6 +1,6 @@
 # Dovleci — urmărire pe rânduri, experimental
 
-Windows/FiveM. F3 pornește/pune pe pauză; Ctrl+C în consolă închide. Scriptul nu
+Windows/FiveM. N pornește/pune pe pauză; Ctrl+C în consolă închide. Scriptul nu
 implementează ocolire anti-cheat și nu garantează nedetectabilitatea sau
 completarea întregului câmp.
 
@@ -29,7 +29,7 @@ Pentru control efectiv:
 ```
 
 Aliniază personajul și camera pe primul rând pentru inițializare, pune jocul în prim-plan și
-apasă F3. La actualizare închide procesul vechi și înlocuiește toate fișierele
+apasă N. La actualizare închide procesul vechi și înlocuiește toate fișierele
 proiectului, nu doar `bot.py`. Nu sunt necesare drepturi de administrator.
 Fișierele `.bat` oferă aceleași comenzi dacă Windows permite rularea lor.
 
@@ -50,6 +50,11 @@ Fișierele `.bat` oferă aceleași comenzi dacă Windows permite rularea lor.
 - Apasă E o dată și așteaptă 9 secunde pentru animație. Nu verifică tichetele
   sau dispariția dovleacului. Consideră interacțiunea executată și exclude acea
   poziție din selecțiile următoare. Dacă E a eșuat, poziția poate rămâne nerecoltată.
+- Înainte de E cere poziție apropiată/aliniată, lățime de minimum 5,5% din
+  imagine, înălțime de minimum 3% și stabilitate timp de 0,35 secunde. Dacă ținta
+  este prea mică, continuă W. După prima interacțiune, un nou E necesită progres
+  vizual observat la aceeași țintă în urma unei comenzi W, plus expirarea pauzei.
+  Simpla trecere a timpului nu autorizează încă un E.
 - Nu rotește camera în timpul urmăririi/recoltării. Dacă pierde direcția, pune pe pauză.
 - După cel puțin o apăsare E, fără poziții memorate rămase și 2,5 secunde fără candidați pe rând,
   încearcă o trecere laterală și o singură întoarcere. Dacă o poziție memorată
@@ -69,10 +74,14 @@ măsurat. Depinde de sensibilitatea mouse-ului și a camerei din FiveM.
 `--row-shift` reprezintă secundele de deplasare laterală dintre rânduri; 0,65 este
 și ea o valoare inițială. `--collect-y` (implicit 0,66) ajustează poziția verticală
 normalizată de interacțiune. `--max-minutes` (implicit 120) limitează sesiunea.
+`--min-width` (implicit 0,055) ajustează pragul vizual de apropiere. Este un prag
+în pixeli relativi, nu o măsurătoare a distanței fizice; camera și zoom-ul îl pot
+afecta. La pornire apare versiunea `v0.4`, pentru identificarea fișierelor noi.
 
 ## Limite și verificări
 
-29 de teste automate au trecut. Sunt acoperite selectarea ferestrei, detectorul
+35 de teste automate au trecut, inclusiv blocarea lui E pentru ținte îndepărtate,
+blocarea repetării fără deplasare observată și cerința de stabilitate. Sunt acoperite selectarea ferestrei, detectorul
 sintetic, proiecția rândului la mișcarea camerei, fluxul optic, păstrarea rândului în fața unor ținte
 laterale, recuperarea după o lipsă temporară a detecției și condițiile de final
 vizual de rând. Unele teste păstrează simularea vechiului controler din
