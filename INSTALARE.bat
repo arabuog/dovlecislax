@@ -2,9 +2,9 @@
 cd /d "%~dp0"
 py -3.12 -m venv .venv
 if errorlevel 1 goto fail
-.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m pip install -r requirements-simple.txt
 if errorlevel 1 goto fail
-echo Instalare terminata. Foloseste PREVIZUALIZARE.bat, apoi PORNIRE.bat.
+echo Instalare terminata. Foloseste PORNIRE.bat pentru modul simplu.
 pause
 exit /b 0
 :fail

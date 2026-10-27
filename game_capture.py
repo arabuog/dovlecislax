@@ -5,7 +5,6 @@ from dataclasses import dataclass
 import ntpath
 import re
 
-import numpy as np
 
 
 @dataclass(frozen=True)
@@ -84,6 +83,7 @@ class GameCapture:
         return window
 
     def grab(self):
+        import numpy as np
         before = self.source()
         if before is None:
             return None
